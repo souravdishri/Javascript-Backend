@@ -1,24 +1,33 @@
+// src/utils/ApiError.js
+
 class ApiError extends Error {
     constructor(
-        statusCode,
-        message= "Something went wrong",
+        message = "Something went wrong",
+        statusCode = 500,
         errors = [],
         stack = ""
-    ){
-        super(message)
-        this.statusCode = statusCode
-        this.data = null
-        this.message = message
+    ) {
+        super(message);
+
+        this.statusCode = statusCode;
+        this.message = message;
+        this.errors = errors;
+        this.data = null;
         this.success = false;
-        this.errors = errors
 
+        // Classify error type based on status code
+        this.status = `${statusCode}`.startsWith("4") ? "fail" : "error";
+
+        // Flag to distinguish expected vs. programming errors
+        this.isOperational = true;
+
+        // Preserve or capture stack trace
         if (stack) {
-            this.stack = stack
-        } else{
-            Error.captureStackTrace(this, this.constructor)
+            this.stack = stack;
+        } else {
+            Error.captureStackTrace(this, this.constructor);
         }
-
     }
 }
 
-export {ApiError}
+export { ApiError };
