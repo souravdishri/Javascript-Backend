@@ -3,6 +3,9 @@ import cors from "cors"
 //Perform CRUD operation in user's browser
 import cookieParser from "cookie-parser"
 
+// import errorHandler from "./middlewares/sampleerrorHandler.js";
+
+
 const app = express();
 
 //To use middleware/configuration
@@ -24,5 +27,12 @@ import userRouter from './routes/user.routes.js'
 app.use("/api/v1/users", userRouter)
 
 // http://localhost:8000/api/v1/users/register
+
+
+
+
+
+// Error-handling middleware (should be last)
+// app.use(errorHandler);
 
 export { app }
