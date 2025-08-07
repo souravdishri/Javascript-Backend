@@ -1,38 +1,70 @@
 import express from "express";
-import cors from "cors"
-//Perform CRUD operation in user's browser
-import cookieParser from "cookie-parser"
+import cors from "cors";
+// (not using as of now)
+// import helmet from "helmet";
+// import morgan from "morgan";
 
-// import errorHandler from "./middlewares/sampleerrorHandler.js";
+//Perform CRUD operation in user's browser
+import cookieParser from "cookie-parser";
+// 🛠️ Custom Middleware
+import errorHandler from "./middlewares/errorHandler.js";
+//we can only give any name according to own, when it is export default
+import userRouter from "./routes/user.routes.js";
 
 
 const app = express();
 
-//To use middleware/configuration
+
+// 🔐 Security Headers
+// Helmet sets various HTTP headers to protect against common vulnerabilities
+// app.use(helmet());
+
+
+// 📋 Logging (Development Only)
+// Morgan logs HTTP requests in a readable format
+// if (process.env.NODE_ENV === "development") {
+//     app.use(morgan("dev"));
+// }
+
+
+// To use middleware/configuration
+// Enable CORS with credentials and dynamic origin
 app.use(cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
     credentials: true
-}))
+}));
 
-app.use(express.json({limit: "16kb"}))
-app.use(express.urlencoded({extended: true, limit: "16kb"}))
-app.use(express.static("public"))
-app.use(cookieParser())
+// Parse incoming JSON requests (limit to 16kb)
+app.use(express.json({ limit: "16kb" }));
 
-//routes import
-//we can only give any name according to own, when it is export default
-import userRouter from './routes/user.routes.js'
+// Parse URL-encoded form data (limit to 16kb)
+app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 
-//routes declaration
-app.use("/api/v1/users", userRouter)
+// Serve static files from the "public" directory
+app.use(express.static("public"));
+
+// Parse cookies from incoming requests
+app.use(cookieParser());
+
+// routes declaration
+app.use("/api/v1/users", userRouter);
 
 // http://localhost:8000/api/v1/users/register
 
 
+// ❌ Catch-All 404 Handler
+// Handles any undefined routes and sends a structured 404 response
+app.all("*", (req, res) => {
+    res.status(404).json({
+        success: false,
+        message: `Can't find ${req.originalUrl} on this server`,
+    });
+});
 
 
-
+// 🧯 Global Error Handler
 // Error-handling middleware (should be last)
-// app.use(errorHandler);
+app.use(errorHandler);
 
-export { app }
+
+export { app };
