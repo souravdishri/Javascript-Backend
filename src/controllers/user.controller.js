@@ -1,4 +1,4 @@
-import { asyncHandler } from "../utils/asyncHandler.js";
+import { asyncHandler } from "../middlewares/asyncHandler.js";
 
 
 const registerUser = asyncHandler( async (req, res) => {
