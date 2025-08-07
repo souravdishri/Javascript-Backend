@@ -4,6 +4,8 @@ class ApiResponse {
         this.data = data
         this.message = message
         this.success = statusCode < 400
+        this.status = this.success ? "success" : "error";
+        this.timestamp = new Date().toISOString();
     }
 }
 
