@@ -5,14 +5,15 @@ class ApiError extends Error {
         message = "Something went wrong",
         statusCode = 500,
         errors = [],
-        stack = ""
+        stack = "",
+        data = null
     ) {
         super(message);
 
         this.statusCode = statusCode;
         this.message = message;
         this.errors = errors;
-        this.data = null;
+        this.data = data;
         this.success = false;
 
         // Classify error type based on status code
@@ -20,6 +21,8 @@ class ApiError extends Error {
 
         // Flag to distinguish expected vs. programming errors
         this.isOperational = true;
+        this.timestamp = new Date().toISOString();
+
 
         // Preserve or capture stack trace
         if (stack) {
