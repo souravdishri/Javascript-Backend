@@ -7,9 +7,9 @@ import cors from "cors";
 //Perform CRUD operation in user's browser
 import cookieParser from "cookie-parser";
 // 🛠️ Custom Middleware
+import notFoundHandler from "./middlewares/notFoundHandler.js";
 import errorHandler from "./middlewares/errorHandler.js";
-//we can only give any name according to own, when it is export default
-import userRouter from "./routes/user.routes.js";
+
 
 
 const app = express();
@@ -46,21 +46,22 @@ app.use(express.static("public"));
 // Parse cookies from incoming requests
 app.use(cookieParser());
 
+
+// 🛣️ Routes import
+// we can only give any name according to own, when it is export default
+import userRouter from "./routes/user.routes.js";
 // routes declaration
 app.use("/api/v1/users", userRouter);
 
 // http://localhost:8000/api/v1/users/register
 
 
+
+
+
 // ❌ Catch-All 404 Handler
 // Handles any undefined routes and sends a structured 404 response
-app.all("*", (req, res) => {
-    res.status(404).json({
-        success: false,
-        message: `Can't find ${req.originalUrl} on this server`,
-    });
-});
-
+app.use(notFoundHandler);
 
 // 🧯 Global Error Handler
 // Error-handling middleware (should be last)
