@@ -29,7 +29,7 @@ const registerUser = asyncHandler(async (req, res) => {
         // check if any field is empty, (`.some()` returns either True/False)
         [fullName, email, username, password].some((field) => field?.trim() === "")
     ) {
-        throw new ApiError(400, "All fields are required")
+        throw new ApiError("All fields are required" , 400)
     }
 
     const existedUser = await User.findOne({
@@ -39,7 +39,7 @@ const registerUser = asyncHandler(async (req, res) => {
     })
 
     if (existedUser) {
-        throw new ApiError(409, "User with email or username already exists")
+        throw new ApiError("User with email or username already exists", 409)
     }
 
 
@@ -66,14 +66,14 @@ const registerUser = asyncHandler(async (req, res) => {
 
 
     if (!avatarLocalPath) {
-        throw new ApiError(400, "Avatar file is required")
+        throw new ApiError("Avatar file is required", 400)
     }
 
     const avatar = await uploadOnCloudinary(avatarLocalPath)
     const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
     if (!avatar) {
-        throw new ApiError(400, "Avatar file is required")
+        throw new ApiError("Avatar file is required", 400)
     }
 
     // create user object
@@ -106,7 +106,7 @@ const registerUser = asyncHandler(async (req, res) => {
     )
 
     if (!createdUser) {
-        throw new ApiError(500, "Something went wrong while registering the user")
+        throw new ApiError("Something went wrong while registering the user", 500)
     }
     // return the response with the created user that is `createdUser`, without password and refreshToken
     return res.status(201).json(
