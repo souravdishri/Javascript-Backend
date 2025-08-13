@@ -1,5 +1,7 @@
 // src/utils/ApiError.js
 
+// You throw errors using `ApiError.js` (defines the error object).
+// All errors are caught and formatted for the client by `errorHandler.js` (defines the response format).
 class ApiError extends Error {
     constructor(
         message = "Something went wrong",
