@@ -69,7 +69,6 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
 
-
     // multer will give us the uploaded files in `req.files`
     //console.log(req.files);
 
