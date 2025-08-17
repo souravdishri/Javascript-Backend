@@ -3,7 +3,33 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
 
+// This function is used to generate access and refresh tokens for the user
+const generateAccessAndRefreshTokens = async (userId) => {
+    try {
+        // Find the user by ID and generate access and refresh tokens
+        const user = await User.findById(userId)
+        // here `user` means the user object that we found by ID
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+
+        // Update the user's refresh token in the database
+        // `validateBeforeSave: false` is used to skip validation for the refreshToken field
+        // This is useful when we want to update the refreshToken without validating it again
+        user.refreshToken = refreshToken    // adding values to the user object
+        await user.save({ validateBeforeSave: false })
+
+        return { accessToken, refreshToken }
+
+    } catch (error) {
+        throw new ApiError("Something went wrong while generating access and refresh tokens", 500)
+    }
+}
+
+// This function is used to register a new user
+// It checks if the user already exists, uploads the avatar and cover image to Cloudinary,
+// creates a new user in the database, and returns the created user without password and refreshToken
 const registerUser = asyncHandler(async (req, res) => {
     // get user details from frontend
     // validation - not empty
@@ -29,7 +55,7 @@ const registerUser = asyncHandler(async (req, res) => {
         // check if any field is empty, (`.some()` returns either True/False)
         [fullName, email, username, password].some((field) => field?.trim() === "")
     ) {
-        throw new ApiError("All fields are required" , 400)
+        throw new ApiError("All fields are required", 400)
     }
 
     const existedUser = await User.findOne({
@@ -43,7 +69,7 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
 
-    
+
     // multer will give us the uploaded files in `req.files`
     //console.log(req.files);
 
@@ -112,11 +138,171 @@ const registerUser = asyncHandler(async (req, res) => {
     return res.status(201).json(
         new ApiResponse(200, createdUser, "User registered Successfully")
     )
+})
+
+// This function is used to log in the user
+// It checks if the user exists, validates the password, generates access and refresh tokens, and
+// sends them back in the response along with the user details
+const loginUser = asyncHandler(async (req, res) => {
+    // req body -> data
+    // username or email
+    //find the user
+    //password check
+    //access and refresh token
+    //send cookie
+
+
+    const { email, username, password } = req.body
+    console.log(email);
+
+    if (!username && !email) {
+        throw new ApiError("username or email is required", 400)
+    }
+
+    // Here is an alternative of above code based on logic discussed in video:
+    // if (!(username || email)) {
+    //     throw new ApiError("username or email is required", 400)
+
+    // }
+
+    const user = await User.findOne({
+        $or: [{ username }, { email }]
+    })
+
+    if (!user) {
+        throw new ApiError("User does not exist", 404)
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if (!isPasswordValid) {
+        throw new ApiError("Invalid user credentials", 401)
+    }
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id)
+
+    // extracting the user details without password and refreshToken
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+
+    // Set cookies for accessToken and refreshToken
+    // `httpOnly: true` means the cookie cannot be accessed by JavaScript, only accessible by the server
+    // `secure: true` means the cookie will only be sent over HTTPS
+    // `sameSite: "strict"` means the cookie will only be sent in a first-party context
+    // `maxAge` is the duration for which the cookie will be valid
+    // `expires` is the date and time when the cookie will expire
+    // `res.cookie` is used to set the cookie in the response
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(
+                200,
+                {   // `loggedInUser` is the user object that we found by ID and selected the fields we want to return
+                    // `accessToken` and `refreshToken` are the tokens
+                    // here we are sending again the accessToken and refreshToken because (when user wants to save these tokens from their side) 
+                    // You're renaming the key from loggedInUser to user, which makes the response cleaner and more intuitive for the frontend.
+                    user: loggedInUser,
+                    accessToken,
+                    refreshToken
+                },
+                "User logged In Successfully"
+            )
+        )
+
 
 })
 
+// This function is used to log out the user
+// It removes the refresh token from the user document and clears the cookies
+const logoutUser = asyncHandler(async (req, res) => {
+    await User.findByIdAndUpdate(
+        // `req.user` is set by the `verifyJWT` middleware, which verifies the JWT token and attaches the user object to the request
+        req.user._id,
+        {
+            $unset: {
+                // `$unset` is used to remove a field from the document
+                // `refreshToken` is the field we want to remove from the user document 
+                refreshToken: 1 // this removes the field from document
+            }
+        },
+        {
+            // `new: true` means return the updated document
+            // This is useful when you want to see the changes made to the document after the update
+            new: true
+        }
+    )
 
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+        .status(200)
+        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", options)
+        .json(new ApiResponse(200, {}, "User logged Out"))
+})
+
+// This function is used to refresh the access token using the refresh token
+// It checks if the refresh token is valid and generates a new access token
+const refreshAccessToken = asyncHandler(async (req, res) => {
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+
+    if (!incomingRefreshToken) {
+        throw new ApiError("unauthorized request", 401)
+    }
+
+    try {
+        const decodedToken = jwt.verify(
+            incomingRefreshToken,
+            process.env.REFRESH_TOKEN_SECRET
+        )
+
+        const user = await User.findById(decodedToken?._id)
+
+        if (!user) {
+            throw new ApiError("Invalid refresh token", 401)
+        }
+
+        if (incomingRefreshToken !== user?.refreshToken) {
+            throw new ApiError("Refresh token is expired or used", 401)
+
+        }
+
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+
+        const { accessToken, newRefreshToken } = await generateAccessAndRefreshTokens(user._id)
+
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, options)
+            .cookie("refreshToken", newRefreshToken, options)
+            .json(
+                new ApiResponse(
+                    200,
+                    { accessToken, refreshToken: newRefreshToken },
+                    "Access token refreshed"
+                )
+            )
+    } catch (error) {
+        throw new ApiError(error?.message || "Invalid refresh token", 401)
+    }
+
+})
 
 export {
     registerUser,
+    loginUser,
+    logoutUser,
+    refreshAccessToken,
 }
