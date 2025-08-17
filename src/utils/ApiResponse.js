@@ -6,7 +6,7 @@ class ApiResponse {
         this.success = statusCode < 400
         this.status = this.success ? "success" : "error";
         this.timestamp = new Date().toISOString();
-        if (meta) this.meta = meta;
+        // if (meta) this.meta = meta;
     }
 }
 
