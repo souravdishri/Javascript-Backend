@@ -299,9 +299,153 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 })
 
+// This function is used to change the current user's password
+// It checks if the old password is correct, updates the password, and saves the user document
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+
+    const { oldPassword, newPassword } = req.body
+
+    // `res.user` is set by the `verifyJWT` middleware, which verifies the JWT token and attaches the user object to the request
+    const user = await User.findById(req.user?._id)
+
+    // `isPasswordCorrect` is a method defined in the User model that checks if the provided password matches the user's password
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+    if (!isPasswordCorrect) {
+        throw new ApiError("Invalid old password", 400)
+    }
+
+    user.password = newPassword
+    // `validateBeforeSave: false` is used to skip validation for the password field
+    // This is useful when we want to update the password without validating it again
+    await user.save({ validateBeforeSave: false })
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Password changed successfully"))
+})
+
+// This function is used to get the current user's details
+// It returns the user object from the request, which is set by the `verifyJWT`
+const getCurrentUser = asyncHandler(async (req, res) => {
+    return res
+        .status(200)
+        .json(new ApiResponse(
+            200,
+            req.user,
+            "User fetched successfully"
+        ))
+})
+
+// This function is used to update the current user's account details
+// It checks if the required fields are provided, updates the user document, and returns the updated user object
+const updateAccountDetails = asyncHandler(async (req, res) => {
+    const { fullName, email } = req.body
+
+    if (!fullName || !email) {
+        throw new ApiError("All fields are required", 400)
+    }
+
+    // `req.user?._id` is used to get the user ID from the request object
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set: { // `$set` is used to update the fields in the document
+                fullName: fullName,
+                email: email,
+            }
+        },
+        { new: true, runValidators: true }   // `new: true` means return the updated document
+
+    ).select("-password")
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, user, "Account details updated successfully"))
+});
+
+// This function is used to update the user's avatar image
+// It checks if the avatar file is provided, uploads it to Cloudinary, updates the user document with the new avatar URL, 
+// and returns the updated user object
+const updateUserAvatar = asyncHandler(async (req, res) => {
+
+    const avatarLocalPath = req.file?.path  // `req.file` is used to get the uploaded file from the request
+    // here we are using `req.file` not `req.files` because we are using single file upload for avatar
+
+    if (!avatarLocalPath) {
+        throw new ApiError("Avatar file is missing", 400)
+    }
+
+    //TODO: delete old image - assignment
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath)
+
+    if (!avatar.url) {
+        throw new ApiError("Error while uploading on avatar", 400)
+
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set: {
+                avatar: avatar.url
+            }
+        },
+        { new: true }
+    ).select("-password")
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, user, "Avatar image updated successfully")
+        )
+})
+
+const updateUserCoverImage = asyncHandler(async (req, res) => {
+    const coverImageLocalPath = req.file?.path
+
+    if (!coverImageLocalPath) {
+        throw new ApiError("Cover image file is missing", 400)
+    }
+
+    //TODO: delete old image - assignment
+
+
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+
+    if (!coverImage.url) {
+        throw new ApiError("Error while uploading on cover image", 400)
+
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set: {
+                coverImage: coverImage.url
+            }
+        },
+        { new: true }
+    ).select("-password")
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, user, "Cover image updated successfully")
+        )
+})
+
+
+
 export {
     registerUser,
     loginUser,
     logoutUser,
     refreshAccessToken,
+    changeCurrentPassword,
+    getCurrentUser,
+    updateAccountDetails,
+    updateUserAvatar,
+    updateUserCoverImage,
 }
