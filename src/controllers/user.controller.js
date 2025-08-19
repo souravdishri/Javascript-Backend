@@ -402,6 +402,11 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         )
 })
 
+// This function is used to update the user's cover image
+// It checks if the cover image file is provided, uploads it to Cloudinary, updates the user document with the new cover image URL, 
+// and returns the updated user object
+// Note: The cover image is optional, so it can be updated only if provided
+// If the cover image is not provided, it will throw an error
 const updateUserCoverImage = asyncHandler(async (req, res) => {
     const coverImageLocalPath = req.file?.path
 
