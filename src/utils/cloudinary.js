@@ -7,6 +7,7 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Uploads a file to Cloudinary and returns the response (including url and public_id)
 const uploadOnCloudinary = async (localFilePath) => {
     try {
         if (!localFilePath) return null
@@ -20,11 +21,24 @@ const uploadOnCloudinary = async (localFilePath) => {
         return response;
 
     } catch (error) {
-        fs.unlinkSync(localFilePath) // remove the locally saved temporary file as the upload operation got failed
+        if (localFilePath && fs.existsSync(localFilePath)) {
+            fs.unlinkSync(localFilePath)
+        }
+        // fs.unlinkSync(localFilePath) // remove the locally saved temporary file as the upload operation got failed
+        return null;
+    }
+}
+
+// Deletes a file from Cloudinary using its public_id
+const deleteFromCloudinary = async (publicId) => {
+    try {
+        if (!publicId) return null;
+        const response = await cloudinary.uploader.destroy(publicId);
+        return response;
+    } catch (error) {
         return null;
     }
 }
 
 
-
-export { uploadOnCloudinary }
+export { uploadOnCloudinary, deleteFromCloudinary }
