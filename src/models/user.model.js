@@ -1,6 +1,6 @@
 //MongoDB automatically generate user's id in bson format
 
-import mongoose, {Schema} from "mongoose";
+import mongoose, { Schema } from "mongoose";
 import jwt from "jsonwebtoken"
 import bcrypt from "bcrypt"
 
@@ -11,7 +11,7 @@ const userSchema = new Schema(
             required: true,
             unique: true,
             lowercase: true,
-            trim: true, 
+            trim: true,
             index: true     //To make any field searchable (in optimize way) to search in DB
         },
         email: {
@@ -19,21 +19,40 @@ const userSchema = new Schema(
             required: true,
             unique: true,
             lowercase: true,
-            trim: true, 
+            trim: true,
         },
         fullName: {
             type: String,
             required: true,
-            trim: true, 
+            trim: true,
             index: true
         },
         avatar: {
-            type: String, // cloudinary url
-            required: true,
+            url: {             // Cloudinary image URL
+                type: String,
+                required: true
+            },
+            public_id: {       // Cloudinary public_id for deletion
+                type: String,
+                required: true
+            }
         },
-        coverImage: {
-            type: String, // cloudinary url
+        coverImage: {        // Cloudinary image URL
+            url: {
+                type: String
+            },
+            public_id: {    // Cloudinary public_id for deletion
+                type: String
+            }
         },
+        coverImage: {},
+        // avatar: {
+        //     type: String, // cloudinary url
+        //     required: true,
+        // },
+        // coverImage: {
+        //     type: String, // cloudinary url
+        // },
         watchHistory: [
             {
                 type: Schema.Types.ObjectId,
@@ -56,18 +75,18 @@ const userSchema = new Schema(
 
 //mongoose hooks
 userSchema.pre("save", async function (next) {
-    if(!this.isModified("password")) return next();
+    if (!this.isModified("password")) return next();
 
     this.password = await bcrypt.hash(this.password, 10)
     next()
 })
 
 //Return True/False
-userSchema.methods.isPasswordCorrect = async function(password){
+userSchema.methods.isPasswordCorrect = async function (password) {
     return await bcrypt.compare(password, this.password)
 }
 
-userSchema.methods.generateAccessToken = function(){
+userSchema.methods.generateAccessToken = function () {
     return jwt.sign(
         {
             _id: this._id,
@@ -82,11 +101,11 @@ userSchema.methods.generateAccessToken = function(){
     )
 }
 
-userSchema.methods.generateRefreshToken = function(){
+userSchema.methods.generateRefreshToken = function () {
     return jwt.sign(
         {
             _id: this._id,
-            
+
         },
         process.env.REFRESH_TOKEN_SECRET,
         {
