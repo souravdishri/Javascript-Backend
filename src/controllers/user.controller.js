@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 
@@ -78,34 +78,63 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // `uploadOnCloudinary` is a function that uploads the file to Cloudinary and returns the response
 
-    const avatarLocalPath = req.files?.avatar[0]?.path;
+    // const avatarLocalPath = req.files?.avatar[0]?.path;
     //const coverImageLocalPath = req.files?.coverImage[0]?.path;
-
-    let coverImageLocalPath;
-    // check if coverImage is present in req.files and has at least one file
-    // if it is present, get the path of the first file
-    // if it is not present, set coverImageLocalPath to null
-    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
-        coverImageLocalPath = req.files.coverImage[0].path
-    }
-
+    const avatarLocalPath = req.files?.avatar?.[0]?.path;
+    let coverImageLocalPath = req.files?.coverImage?.[0]?.path || null;
+    // let coverImageLocalPath;
 
     if (!avatarLocalPath) {
         throw new ApiError("Avatar file is required", 400)
     }
 
-    const avatar = await uploadOnCloudinary(avatarLocalPath)
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+    // check if coverImage is present in req.files and has at least one file
+    // if it is present, get the path of the first file
+    // if it is not present, set coverImageLocalPath to null
+    // if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+    //     coverImageLocalPath = req.files.coverImage[0].path
+    // }
 
-    if (!avatar) {
-        throw new ApiError("Avatar file is required", 400)
+    const avatar = await uploadOnCloudinary(avatarLocalPath)
+    // “If coverImageLocalPath exists, upload it to Cloudinary and store the result. Otherwise, set coverImage to null.”
+    // Ternary Operator
+    // console.log(avatar);
+
+    const coverImage = coverImageLocalPath
+        ? await uploadOnCloudinary(coverImageLocalPath)
+        : null
+
+    // Another way of writing above code using if-else:
+    // let coverImage;
+    // if (coverImageLocalPath) {
+    //     console.log("Uploading cover image...");
+    //     coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    // } else {
+    //     console.log("No cover image provided.");
+    //     coverImage = null;
+    // }
+
+
+    // if (!avatar) {
+    //     throw new ApiError("Avatar file is required", 400)
+    // }
+    if (!avatar?.url || !avatar?.public_id) {
+        throw new ApiError("Avatar upload failed", 400)
     }
+
 
     // create user object
     const user = await User.create({
         fullName, // fullName is not unique, so we can use it directly
-        avatar: avatar.url, // avatar is required, so we can use it directly
-        coverImage: coverImage?.url || "", // coverImage can be optional, so we use optional chaining
+        avatar: {
+            url: avatar.url,
+            public_id: avatar.public_id
+        },
+        coverImage: coverImage
+            ? { url: coverImage.url, public_id: coverImage.public_id }
+            : undefined,
+        // avatar: avatar.url, // avatar is required, so we can use it directly
+        // coverImage: coverImage?.url || "", // coverImage can be optional, so we use optional chaining
         email, // email is unique, so we can use it to find the user
         password, // password is required, so we can use it directly
         username: username.toLowerCase()
@@ -377,19 +406,62 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     }
 
     //TODO: delete old image - assignment
+    // const user = await User.findById(req.user._id)
+    const user = await User.findById(req.user._id).select("-password");
+
+    if (!user) {
+        throw new ApiError("User not found", 404);
+    }
+
+    // Delete old avatar from Cloudinary if exists
+    if (user.avatar?.public_id) {
+        await deleteFromCloudinary(user.avatar.public_id)
+        // console.log("Old avatar deleted from Cloudinary whose public_id is: ", user.avatar.public_id);
+        
+    }
 
     const avatar = await uploadOnCloudinary(avatarLocalPath)
+    // console.log(avatar);
+    
 
-    if (!avatar.url) {
-        throw new ApiError("Error while uploading on avatar", 400)
+    if (!avatar?.url || !avatar?.public_id) {
+        throw new ApiError("Error while uploading avatar", 400)
 
     }
 
-    const user = await User.findByIdAndUpdate(
+    // we can also use like this:
+    // user.avatar = {
+    //     url: avatar.url,
+    //     public_id: avatar.public_id
+    // }
+    // await user.save()
+    // ⚠️ Note: After .save(), the returned user might include the password again unless you re-select or sanitize it before sending.
+    // After saving the user, convert the Mongoose document to a plain object and manually remove sensitive fields:
+    // const userObj = user.toObject();
+    // delete userObj.password;
+
+    // For a scalable solution, define this in your schema:
+    //     userSchema.methods.toJSON = function () {
+    //   const obj = this.toObject();
+    //   delete obj.password;
+    //   return obj;
+    // };
+    // Mongoose will automatically call .toJSON() when serializing.
+
+    //     Approach	                     Pros	                       Notes
+    // .toObject() + delete	    Manual control	            Great for one-off sanitizing
+    // .select("-password")	    Excludes early	            May need re-sanitizing after save
+    // .toJSON() method	        Scalable, automatic	        Best for consistent API responses
+
+
+    const updatedUser = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set: {
-                avatar: avatar.url
+                avatar: {
+                    url: avatar.url,
+                    public_id: avatar.public_id
+                }
             }
         },
         { new: true }
@@ -398,7 +470,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     return res
         .status(200)
         .json(
-            new ApiResponse(200, user, "Avatar image updated successfully")
+            new ApiResponse(200, { user: updatedUser }, "Avatar image updated successfully")
         )
 })
 
@@ -415,20 +487,37 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     }
 
     //TODO: delete old image - assignment
+    const user = await User.findById(req.user._id)
+
+    if (!user) {
+        throw new ApiError("User not found", 404);
+    }
+
+    // Delete old cover image from Cloudinary if exists
+    if (user.coverImage?.public_id) {
+        await deleteFromCloudinary(user.coverImage.public_id)
+    }
 
 
     const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
-    if (!coverImage.url) {
+    if (!coverImage?.url || !coverImage?.public_id) {
         throw new ApiError("Error while uploading on cover image", 400)
 
     }
 
-    const user = await User.findByIdAndUpdate(
+    // user.coverImage = { url: coverImage.url, public_id: coverImage.public_id }
+    // await user.save()
+
+    const updatedUser = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set: {
-                coverImage: coverImage.url
+                // coverImage: coverImage.url
+                avatar: {
+                    url: coverImage.url,
+                    public_id: coverImage.public_id
+                }
             }
         },
         { new: true }
@@ -437,7 +526,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     return res
         .status(200)
         .json(
-            new ApiResponse(200, user, "Cover image updated successfully")
+            new ApiResponse(200, { user: updatedUser }, "Cover image updated successfully")
         )
 })
 
