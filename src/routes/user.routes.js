@@ -2,7 +2,19 @@
 
 import { Router } from "express";
 //we can import like this when it is not export in default
-import { loginUser, logoutUser, registerUser, refreshAccessToken, updateUserAvatar } from "../controllers/user.controller.js";
+import { 
+    loginUser, 
+    logoutUser, 
+    registerUser, 
+    refreshAccessToken, 
+    updateUserAvatar, 
+    changeCurrentPassword, 
+    getCurrentUser, 
+    updateAccountDetails, 
+    updateUserCoverImage, 
+    getUserChannelProfile, 
+    getWatchHistory 
+} from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -43,13 +55,24 @@ router.route("/login").post(loginUser)
 //secured routes
 router.route("/logout").post(verifyJWT, logoutUser)
 router.route("/refresh-token").post(refreshAccessToken)
-router.route("/update-avatar").patch(
+router.route("/change-password").post(verifyJWT, changeCurrentPassword)
+router.route("/current-user").get(verifyJWT, getCurrentUser)
+router.route("/update-account").patch(verifyJWT, updateAccountDetails)
+
+router.route("/avatar").patch(
     verifyJWT,
     // upload.single("avatar") tells multer to expect a single file with the key avatar. This file will be processed and made available in req.file.
     upload.single("avatar"),
     updateUserAvatar
 )
+router.route("/cover-image").patch(
+    verifyJWT,
+    upload.single("coverImage"),
+    updateUserCoverImage
+)
 
+router.route("/c/:username").get(verifyJWT, getUserChannelProfile)
+router.route("/history").get(verifyJWT, getWatchHistory)
 
 
 export default router
