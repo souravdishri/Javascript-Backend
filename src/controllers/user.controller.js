@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 // This function is used to generate access and refresh tokens for the user
 const generateAccessAndRefreshTokens = async (userId) => {
@@ -514,7 +515,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         {
             $set: {
                 // coverImage: coverImage.url
-                avatar: {
+                coverImage: {
                     url: coverImage.url,
                     public_id: coverImage.public_id
                 }
