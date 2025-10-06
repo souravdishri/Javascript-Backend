@@ -119,7 +119,7 @@ const registerUser = asyncHandler(async (req, res) => {
     // if (!avatar) {
     //     throw new ApiError("Avatar file is required", 400)
     // }
-    if (!avatar?.url || !avatar?.public_id) {
+    if (!avatar?.secure_url || !avatar?.public_id) {
         throw new ApiError("Avatar upload failed", 400)
     }
 
@@ -128,14 +128,14 @@ const registerUser = asyncHandler(async (req, res) => {
     const user = await User.create({
         fullName, // fullName is not unique, so we can use it directly
         avatar: {
-            url: avatar.url,
+            url: avatar.secure_url,
             public_id: avatar.public_id
         },
         coverImage: coverImage
-            ? { url: coverImage.url, public_id: coverImage.public_id }
+            ? { url: coverImage.secure_url, public_id: coverImage.public_id }
             : undefined,
-        // avatar: avatar.url, // avatar is required, so we can use it directly
-        // coverImage: coverImage?.url || "", // coverImage can be optional, so we use optional chaining
+        // avatar: avatar.secure_url, // avatar is required, so we can use it directly
+        // coverImage: coverImage?.secure_url || "", // coverImage can be optional, so we use optional chaining
         email, // email is unique, so we can use it to find the user
         password, // password is required, so we can use it directly
         username: username.toLowerCase()
@@ -425,14 +425,14 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     // console.log(avatar);
     
 
-    if (!avatar?.url || !avatar?.public_id) {
+    if (!avatar?.secure_url || !avatar?.public_id) {
         throw new ApiError("Error while uploading avatar", 400)
 
     }
 
     // we can also use like this:
     // user.avatar = {
-    //     url: avatar.url,
+    //     url: avatar.secure_url,
     //     public_id: avatar.public_id
     // }
     // await user.save()
@@ -460,7 +460,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         {
             $set: {
                 avatar: {
-                    url: avatar.url,
+                    url: avatar.secure_url,
                     public_id: avatar.public_id
                 }
             }
@@ -502,21 +502,21 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
     const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
-    if (!coverImage?.url || !coverImage?.public_id) {
+    if (!coverImage?.secure_url || !coverImage?.public_id) {
         throw new ApiError("Error while uploading on cover image", 400)
 
     }
 
-    // user.coverImage = { url: coverImage.url, public_id: coverImage.public_id }
+    // user.coverImage = { url: coverImage.secure_url, public_id: coverImage.public_id }
     // await user.save()
 
     const updatedUser = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set: {
-                // coverImage: coverImage.url
+                // coverImage: coverImage.secure_url
                 coverImage: {
-                    url: coverImage.url,
+                    url: coverImage.secure_url,
                     public_id: coverImage.public_id
                 }
             }
