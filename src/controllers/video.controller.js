@@ -339,15 +339,18 @@ const getAllVideos = asyncHandler(async (req, res) => {
     //TODO: get all videos based on query, sort, pagination
     console.log({ page, limit, query, sortBy, sortType, userId });
 
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
-    const skip = (pageNum - 1) * limitNum;
-
     // ✅ Build match conditions dynamically
     const matchStage = {
         isPublished: true,
     };
 
+    // Dynamic sorting
+    const sortStage = {
+        [sortBy]: sortType === "asc" ? 1 : -1,
+    };
+
+
+    // if query is present, add text search conditions
     if (query) {
         matchStage.$or = [
             // $or allows searching in multiple fields
@@ -362,13 +365,9 @@ const getAllVideos = asyncHandler(async (req, res) => {
         matchStage.owner = new mongoose.Types.ObjectId(userId);
     }
 
-    // ✅ Sort configuration
-    const sortStage = {
-        [sortBy]: sortType === "asc" ? 1 : -1,
-    };
 
     // ✅ Aggregation pipeline
-    const videosAggregation = await Video.aggregate([
+    const videosAggregation = Video.aggregate([
         { $match: matchStage },
 
         // ✅ Lookup owner info
@@ -396,12 +395,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
                 owner: { $first: "$owner" },
             },
         },
-
-        // ✅ Sorting & pagination
         { $sort: sortStage },
-        { $skip: skip },
-        { $limit: limitNum },
-
         // ✅ Project only required fields
         {
             $project: {
@@ -411,66 +405,45 @@ const getAllVideos = asyncHandler(async (req, res) => {
                 duration: 1,
                 isPublished: 1,
                 thumbnail: 1,
+                videoFile: 1,
+                // "thumbnail.url:" 1,
                 owner: 1,
                 createdAt: 1,
             },
         },
     ]);
 
-    // what if no videos found?
-    if (videosAggregation.length === 0) {
-        return res.status(200).json(
-            new ApiResponse(
-                200, 
-                { 
-                    videos: [], 
-                    pagination: { totalVideos: 0, totalPages: 0, currentPage: pageNum, limit: limitNum } 
-                }, 
-                "No videos found"
-            )
-        )
+    // Pagination options
+    const options = {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
     }
 
     console.log("Videos aggregation result:", videosAggregation);
 
-    // ✅ Get total count for pagination
-    const totalCountAggregation = await Video.aggregate([
-        { $match: matchStage },
-        { $count: "total" },
-    ]);
-
-    const totalVideos = totalCountAggregation[0]?.total || 0;
-    const totalPages = Math.ceil(totalVideos / limitNum);
-
+    // execute pagination
+    const videos = await Video.aggregatePaginate(videosAggregation, options);
 
     return res.status(200).json(
         new ApiResponse(
             200,
-            {
-                videos: videosAggregation,
-                pagination: {
-                    totalVideos,
-                    totalPages,
-                    currentPage: pageNum,
-                    limit: limitNum,
-                },
-            },
+            videos,
             "Videos fetched successfully (Aggregation)"
         )
     );
 
 
-    //      🧠 Breakdown of Each Stage
-    // Stage                        	Description
+    //     //      🧠 Breakdown of Each Stage
+    //     // Stage                        	Description
 
-    // $match	            Filters published videos, searches text, and optionally filters by user
-    // $lookup	            Joins the User collection to get owner info (username, avatar, etc.)
-    // $addFields	        Simplifies the owner array into a single object
-    // $sort	            Sorts videos by date, views, or any field dynamically
-    // $skip	            Skips previous pages
-    // $limit	            Limits to desired number of videos per page
-    // $project	            Returns only needed fields to keep response clean
-    // $count	            Calculates total videos for pagination info
+    //     // $match	            Filters published videos, searches text, and optionally filters by user
+    //     // $lookup	            Joins the User collection to get owner info (username, avatar, etc.)
+    //     // $addFields	        Simplifies the owner array into a single object
+    //     // $sort	            Sorts videos by date, views, or any field dynamically
+    //     // $skip	            Skips previous pages
+    //     // $limit	            Limits to desired number of videos per page
+    //     // $project	            Returns only needed fields to keep response clean
+    //     // $count	            Calculates total videos for pagination info
 
 });
 
