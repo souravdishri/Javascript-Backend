@@ -364,8 +364,8 @@ const getPlaylistById = asyncHandler(async (req, res) => {
         {
             $lookup: {
                 from: "videos",
-                localField: "videos",
-                foreignField: "_id",
+                localField: "videos", // this `videos` is from the Playlist model
+                foreignField: "_id",    // this `_id` is from the Video model
                 as: "videos",
                 pipeline: [
                     {
