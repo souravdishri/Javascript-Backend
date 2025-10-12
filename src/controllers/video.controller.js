@@ -5,6 +5,7 @@ import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js"
+import { Like } from "../models/like.model.js"
 
 
 const publishAVideo = asyncHandler(async (req, res) => {
@@ -251,6 +252,18 @@ const deleteVideo = asyncHandler(async (req, res) => {
 
     // delete video document from db
     const deletedVideo = await Video.findByIdAndDelete(videoId)
+    await Like.deleteMany({ video: videoId }) // delete all likes associated with this video
+    await Comment.deleteMany({ video: videoId }) // delete all comments associated with this video
+
+    // delete video document and related data
+    // use `Promise.all` to run these operations in parallel for better performance
+    // await Promise.all([
+    //     Like.deleteMany({ video: videoId }),
+    //     Comment.deleteMany({ video: videoId }),
+    //     Video.findByIdAndDelete(videoId),
+    // ]);
+
+
     if (!deletedVideo) {
         throw new ApiError("Unable to delete video, please try again", 500)
     }
@@ -318,9 +331,67 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new ApiError("Unable to fetch video after updating view count, please try again", 500)
     }
 
+    const videoDetails = await Video.aggregate([
+        { $match: { _id: new mongoose.Types.ObjectId(videoId) } },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [{ $project: { username: 1, fullName: 1, "avatar.url": 1 } }],
+            },
+        },
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",  // this `_id` field is from `videos` collection
+                foreignField: "video", // this `video` field in `likes` collection
+                as: "likes",
+            },
+        },
+        {
+            $lookup: {
+                from: "comments",
+                localField: "_id",  // this `_id` field is from `videos` collection
+                foreignField: "video", // this `video` field in `comments` collection
+                as: "comments",
+            },
+        },
+        {
+            $addFields: {
+                owner: { $first: "$owner" },
+                likesCount: { $size: "$likes" },
+                commentsCount: { $size: "$comments" },
+            },
+        },
+        {
+            $project: {
+                title: 1,
+                description: 1,
+                views: 1,
+                isPublished: 1,
+                duration: 1,
+                thumbnail: 1,
+                videoFile: 1,
+                likesCount: 1,
+                commentsCount: 1,
+                owner: 1,
+                createdAt: 1,
+            },
+        },
+    ]);
+
+    if (!videoDetails.length) {
+        throw new ApiError("Unable to fetch video details, please try again", 500)
+    }
+
+    console.log("Video details: ", videoDetails[0]);
+
+
     return res.status(200)
         .json(
-            new ApiResponse(200, updatedVideo, "Video fetched successfully")
+            new ApiResponse(200, videoDetails[0], "Video fetched successfully")
         )
 
 })
@@ -388,11 +459,28 @@ const getAllVideos = asyncHandler(async (req, res) => {
                 ],
             },
         },
-
-        // ✅ Simplify owner (pick first element)
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "video",
+                as: "likes",
+            },
+        },
+        {
+            $lookup: {
+                from: "comments",
+                localField: "_id",
+                foreignField: "video",
+                as: "comments",
+            },
+        },
+        // ✅ Simplify owner array and add likes/comments count 
         {
             $addFields: {
                 owner: { $first: "$owner" },
+                likesCount: { $size: "$likes" },
+                commentsCount: { $size: "$comments" },
             },
         },
         { $sort: sortStage },
@@ -402,6 +490,8 @@ const getAllVideos = asyncHandler(async (req, res) => {
                 title: 1,
                 description: 1,
                 views: 1,
+                likesCount: 1,
+                commentsCount: 1,
                 duration: 1,
                 isPublished: 1,
                 thumbnail: 1,
