@@ -6,7 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js"
 import { Like } from "../models/like.model.js"
-
+import { Comment } from "../models/comment.model.js"
 
 const publishAVideo = asyncHandler(async (req, res) => {
     const { title, description } = req.body
@@ -242,19 +242,27 @@ const deleteVideo = asyncHandler(async (req, res) => {
 
     // delete video file from cloudinary
     if (video.videoFile?.public_id) {
-        await deleteFromCloudinary(video.videoFile.public_id)
+        // specify the resource_type while deleting videos 
+        // Since Cloudinary defaults to "image", it deletes the thumbnail but ignores the video
+        await deleteFromCloudinary(video.videoFile.public_id, "video")
+        // console.log("videoFile deleted: ", video.videoFile.public_id);
+        
     }
 
     // delete thumbnail from cloudinary
     if (video.thumbnail?.public_id) {
+        // we don't need to specify resource_type here, 
+        // since thumbnail is an image which is default to it
         await deleteFromCloudinary(video.thumbnail.public_id)
+        // console.log("thumbnail deleted: ", video.thumbnail.public_id);
     }
 
     // delete video document from db
     const deletedVideo = await Video.findByIdAndDelete(videoId)
     await Like.deleteMany({ video: videoId }) // delete all likes associated with this video
     await Comment.deleteMany({ video: videoId }) // delete all comments associated with this video
-
+    // console.log("successfully deleted video and its associated likes and comments");
+    
     // delete video document and related data
     // use `Promise.all` to run these operations in parallel for better performance
     // await Promise.all([
