@@ -1,5 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-
+import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 
 const likeSchema = new Schema({
     video: {
@@ -39,7 +39,7 @@ likeSchema.index(
     { unique: true, partialFilterExpression: { tweet: { $exists: true } } }
 );
 
-
+likeSchema.plugin(mongooseAggregatePaginate);
 
 export const Like = mongoose.model("Like", likeSchema)
 
