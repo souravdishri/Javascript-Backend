@@ -71,8 +71,14 @@ const getChannelStats = asyncHandler(async (req, res) => {
 
 const getChannelVideos = asyncHandler(async (req, res) => {
     // TODO: Get all the videos uploaded by the channel
-    const { channelId } = req.params
+    let { channelId } = req.params
+    channelId = req.params.channelId || req.user?._id; // Accept channelId from params OR fallback to authenticated user id
     const { page = 1, limit = 10 } = req.query
+
+    // require an id (either param or authenticated user)
+    if (!channelId) {
+        throw new ApiError("channelId is required (or authenticate to use your own id)", 400)
+    }
 
     // Validate channelId
     if (!isValidObjectId(channelId)) {
