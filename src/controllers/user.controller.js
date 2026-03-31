@@ -28,6 +28,15 @@ const generateAccessAndRefreshTokens = async (userId) => {
     }
 }
 
+const getCookieOptions = () => {
+    const isProduction = process.env.NODE_ENV === 'production'
+    return {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
+    }
+}
+
 // This function is used to register a new user
 // It checks if the user already exists, uploads the avatar and cover image to Cloudinary,
 // creates a new user in the database, and returns the created user without password and refreshToken
@@ -220,10 +229,7 @@ const loginUser = asyncHandler(async (req, res) => {
     // `maxAge` is the duration for which the cookie will be valid
     // `expires` is the date and time when the cookie will expire
     // `res.cookie` is used to set the cookie in the response
-    const options = {
-        httpOnly: true,
-        secure: true
-    }
+    const options = getCookieOptions()
 
     return res
         .status(200)
@@ -267,10 +273,7 @@ const logoutUser = asyncHandler(async (req, res) => {
         }
     )
 
-    const options = {
-        httpOnly: true,
-        secure: true
-    }
+    const options = getCookieOptions()
 
     return res
         .status(200)
@@ -282,7 +285,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 // This function is used to refresh the access token using the refresh token
 // It checks if the refresh token is valid and generates a new access token
 const refreshAccessToken = asyncHandler(async (req, res) => {
-    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+    const incomingRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken
 
     if (!incomingRefreshToken) {
         throw new ApiError("unauthorized request", 401)
@@ -305,10 +308,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
         }
 
-        const options = {
-            httpOnly: true,
-            secure: true
-        }
+        const options = getCookieOptions()
 
         const { accessToken, newRefreshToken } = await generateAccessAndRefreshTokens(user._id)
 

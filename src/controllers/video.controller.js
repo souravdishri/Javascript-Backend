@@ -52,7 +52,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
         },
         duration: uploadedVideo.duration,
         owner: req.user?._id,
-        isPublished: false // all videos will be unpublished by default
+        isPublished: true // publish new videos by default so they appear on the home page
     })
 
     // Notes: (populate owner details (username, avatar)) 
@@ -290,7 +290,7 @@ const getVideoById = asyncHandler(async (req, res) => {
     if (!isValidObjectId(videoId)) {
         throw new ApiError("Invalid video ID", 400)
     }
-    if (!isValidObjectId(req.user?._id)) {
+    if (req.user?._id && !isValidObjectId(req.user._id)) {
         throw new ApiError("Invalid user ID", 400)
     }
 
@@ -300,16 +300,12 @@ const getVideoById = asyncHandler(async (req, res) => {
     }
 
     // if the video is unpublished, only the owner can access it 
-    if (!video.isPublished && video.owner?._id.toString() !== req.user?._id.toString()) {
+    if (!video.isPublished && (!req.user || video.owner?.toString() !== req.user._id.toString())) {
         throw new ApiError("You are not authorized to view this video", 403)
     }
 
     // increment view count by 1 (only if the viewer is not the owner)
-    if (video.owner?._id.toString() !== req.user?._id.toString()) {
-        // this approach can't able to run any custom mongoose middlewares (pre-save/post-save hooks), 
-        // since it directly updates the document in the database
-        // increment the views count atomically
-
+    if (!req.user || video.owner?.toString() !== req.user._id.toString()) {
         await Video.findByIdAndUpdate(
             videoId,
             {
@@ -317,21 +313,18 @@ const getVideoById = asyncHandler(async (req, res) => {
             },
             { new: true } // return the updated document
         )
-
-        // Alternative approach:    
-        // this approach helps to `Triggers Mongoose middlewares`
-        // video.views += 1
-        // await video.save()
     }
 
-    // add to user's watchHistory if not already present
-    await User.findByIdAndUpdate(
-        req.user?._id,
-        {
-            $addToSet: { watchHistory: videoId } // addToSet avoids duplicates
-        },
-        { new: true }
-    )
+    // add to user's watchHistory if authenticated
+    if (req.user?._id) {
+        await User.findByIdAndUpdate(
+            req.user._id,
+            {
+                $addToSet: { watchHistory: videoId } // addToSet avoids duplicates
+            },
+            { new: true }
+        )
+    }
 
     // fetch the video again to get the updated view count
     const updatedVideo = await Video.findById(videoId)
